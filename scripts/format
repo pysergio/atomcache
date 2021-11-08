@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -e
+
+isort --force-single-line-imports atomcache tests
+autoflake --recursive --remove-all-unused-imports --remove-unused-variables --in-place atomcache tests
+black atomcache tests
+isort atomcache tests

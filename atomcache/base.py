@@ -3,15 +3,15 @@ import inspect
 import json
 from functools import partial
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Union
-from aioredis.client import Redis
 
+from aioredis.client import Redis
 from fastapi import FastAPI, Request, Response, params
+from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
 from starlette.datastructures import CommaSeparatedStrings
 
-from .redis import RedisCacheBackend
 from .backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
+from .redis import RedisCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
 MIN_CACHE_EXPIRE = 30
@@ -67,12 +67,12 @@ class Cache:
         self._autorefresh_callback: Union[Callable, Awaitable, None] = None
         self._autorefresh_task: Optional[asyncio.Future] = None
         self._request: Optional[Request] = None
-        self._cache_control: Optional[CommaSeparatedStrings] = None
+        self._cache_control: bool = False
 
     async def __call__(self, request: Request):
         self._request = request
         if self._allow_cache_control:
-            self._cache_control = CommaSeparatedStrings(request.headers.get("Cache-Control", "")) == "no-cache"
+            self._cache_control = "no-cache" in CommaSeparatedStrings(request.headers.get("Cache-Control", ""))
         if self.auto_refresh:
             await self.raise_try()
         return self
@@ -91,7 +91,7 @@ class Cache:
             else:
                 default = prm.default
             kwargs[prm.name] = default
-            if isinstance(default, (inspect._empty, params.Depends)):  # noqa: WPS437
+            if default == inspect._empty or isinstance(default, params.Depends):  # noqa: WPS437
                 raise ValueError(f"{endpoint} does not support auto cache refresh. Args {prm.name} has no default")
         self._autorefresh_callback = partial(endpoint, **kwargs)
         Cache.autorefresh[self.namespace] = self
@@ -100,20 +100,11 @@ class Cache:
         return f"{self.namespace}{cache_id}"
 
     def set(self, response: Any, cache_id: str = "") -> dict:  # noqa: WPS125
-        
-        if isinstance(response, BaseModel):
-            cache = response.json()
-        elif isinstance(response, dict):
-            cache = json.dumps(response, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
-        elif isinstance(response, list):
-            cache = json.dumps(
-                tuple(map(dict, response)), ensure_ascii=False, allow_nan=False, separators=(",", ":")
-            ).encode("utf-8")
-        elif isinstance(response, Response):
+        if isinstance(response, Response):
             cache = response.body
         else:
-            cache = response
-        if not self._cache_control or "no-store" not in self._cache_control:
+            cache = json.dumps(jsonable_encoder(response))
+        if not self._cache_control:
             asyncio.ensure_future(self.backend.set(key=self.get_key(cache_id), value=cache, expire=self._expire))
         return response
 
@@ -124,10 +115,13 @@ class Cache:
         decode=True,
         lockspace: Optional[str] = None,
     ):
-        if self._cache_control and "no-cache" in self._cache_control:
+        if self._cache_control:
             return None
         cached, _ = await self.backend.get(
-            key=self.get_key(cache_id), timeout=self._lock_timeout, with_lock=with_lock, lockspace=lockspace
+            key=self.get_key(cache_id),
+            timeout=self._lock_timeout,
+            with_lock=with_lock,
+            lockspace=lockspace,
         )
         if cached is not None and decode:
             return json.loads(cached)
@@ -144,7 +138,7 @@ class Cache:
         Raises:
             CachedResponse: generate response from cache.
         """
-        if self._cache_control and "no-cache" in self._cache_control:
+        if self._cache_control:
             return
         cached_content, ttl = await self.backend.get(
             self.get_key(cache_id),
@@ -156,7 +150,7 @@ class Cache:
             response = Response(media_type="application/json")
             if_none_match = self._request.headers.get("if-none-match")
             response.headers["Cache-Control"] = f"max-age={ttl}"
-            etag = f"W/{hash(cached_content)}"  # noqa: WPS237
+            etag = f"W/{hash(cached_content)}"  # noqa: WPS237 # TODO: Change hash function to SHA256 (API terminal ref)
             if if_none_match == etag:
                 response.status_code = 304
             else:
@@ -175,8 +169,8 @@ class Cache:
             cls.backend = RedisCacheBackend(cache_client)
         else:
             raise TypeError(f"Unsupported {type(cache_client)} cache client type.")
-        cls._config_caches(app)
         app.add_exception_handler(CachedResponse, cached_response_handler)
+        cls._config_caches(app)
         if autorefresh:
             for cache in cls.autorefresh.values():
                 cache.schedule_autorefresh()
@@ -202,7 +196,11 @@ class Cache:
 
     async def _autorefresh(self):
         key = self.get_key()
-        time_until_refresh = await self.backend.ttl(key) - self._lock_timeout  # In case key is not setted ttl is -2
+
+        ttl = await self.backend.ttl(key)
+
+        time_until_refresh = ttl - self._lock_timeout  # In case key is not setted ttl is -2
+
         if time_until_refresh > 0:
             await asyncio.sleep(time_until_refresh)
         if await self.backend.lock(key, timeout=self._lock_timeout):
