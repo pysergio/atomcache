@@ -3,12 +3,14 @@ import inspect
 import json
 from functools import partial
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Union
+from aioredis.client import Redis
 
 from fastapi import FastAPI, Request, Response, params
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from starlette.datastructures import CommaSeparatedStrings
 
+from .redis import RedisCacheBackend
 from .backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
@@ -47,11 +49,11 @@ class Cache:
                 Defaults to DEFAULT_LOCK_TIMEOUT.
         NOTE: Autorefresh is not active if Cache was `init`-ed with autorefresh=False. On DEBUG mode autorefresh=False.
         ```
-        @router.get("/cache", response_model=List[TheResponse], name="main:test-example")
+        @router.get("/cache", response_model=List[TheResponseModel], name="main:test-example")
         async def welcome(offset: int = 0, items: int = 10, cache: Cache = Depends(Cache(exp=100, lock_timeout=10+1))):
             cache_id = f"{offset}-{items}"  # Build cache identifier
             await cache.raise_try(cache_id)  # Try to respond from cache
-            response = await db.terminal.find(TheResponse, skip=offset, limit=items)
+            response = await db.find(TheResponseModel, skip=offset, limit=items)
             await asyncio.sleep(10)  # Do some heavy work for 10 sec, see `lock_timeout`
             return cache.set(response, cache_id=cache_id)
         """
@@ -167,16 +169,20 @@ class Cache:
             self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
 
     @classmethod
-    async def init(cls, app: FastAPI, backend: BaseCacheBackend, autorefresh: bool = True):
+    async def init(cls, app: FastAPI, cache_client: Redis, autorefresh: bool = True):
         cls.app = app
-        cls.backend = backend
-        cls.config_caches(app)
+        if isinstance(cache_client, Redis):
+            cls.backend = RedisCacheBackend(cache_client)
+        else:
+            raise TypeError(f"Unsupported {type(cache_client)} cache client type.")
+        cls._config_caches(app)
+        app.add_exception_handler(CachedResponse, cached_response_handler)
         if autorefresh:
             for cache in cls.autorefresh.values():
                 cache.schedule_autorefresh()
 
     @classmethod
-    def config_caches(cls, app: FastAPI) -> None:  # noqa: WPS231
+    def _config_caches(cls, app: FastAPI) -> None:  # noqa: WPS231
         """
         Should be called only after all routes have been added.
         """
