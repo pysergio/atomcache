@@ -12,18 +12,26 @@ repository = "https://github.com/pysergio/atomcache"
 python = "^3.8"
 fastapi = "^0.61.2"
 aioredis = "^2.0.0"
+
+[tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
 pytest-asyncio = "^0.16.0"
 pytest-cov = "^3.0.0"
 isort = "^5.10.0"
 autoflake = "^1.4"
 black = "^21.10b0"
-flake8 = "^4.0.1"
-
-[tool.poetry.dev-dependencies]
+wemake-python-styleguide = "^0.15.2"
+mypy = "^0.910"
+flake8-fixme = "^1.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
 [tool.black]
 line-length = 120
+
+[tool.isort]
+profile = "black"
+src_paths = ["atomcache", "tests"]
+combine_as_imports = true

@@ -1,6 +1,5 @@
 import asyncio
 
-import aioredis
 import pytest
 from aioredis.client import Redis
 
@@ -16,37 +15,6 @@ TEST_DEFAULT_VALUE = "TEST_DEFAULT_VALUE"
 
 EXPIRE_TIME = 10
 DEFAULT_ENCODING = "utf-8"
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    policy = asyncio.get_event_loop_policy()
-    res = policy.new_event_loop()
-    res._close = res.close
-    res.close = lambda: None
-
-    yield res
-
-    res._close()
-
-
-@pytest.fixture
-async def redis_client() -> Redis:
-    redis: Redis = await aioredis.from_url(url="redis://127.0.0.1:6379/0", encoding=DEFAULT_ENCODING)
-    yield redis
-    await redis.close()
-
-
-@pytest.fixture(autouse=True)
-async def clean_redis(redis_client: Redis) -> Redis:
-    await redis_client.flushall()
-
-
-async def test_get_channel(redis_client):
-    redis_backend = RedisCacheBackend(redis=redis_client)
-    async with redis_backend.subscribe(TEST_SET_KEY) as channel:
-        assert channel.subscribed
 
 
 async def test_redis_cache_backend_close(redis_client):
@@ -101,7 +69,7 @@ async def test_get_when_lock_is_present_and_wait(redis_client: Redis):
     lock_name = redis_backend.lock_key(TEST_SET_KEY)
     await redis_client.set(lock_name, value=b"1", ex=100)
 
-    get_task = asyncio.create_task(redis_backend.get(key=TEST_SET_KEY, timeout=3))
+    get_task = asyncio.create_task(redis_backend.get(key=TEST_SET_KEY, timeout=5))
     await asyncio.sleep(1)
     await redis_client.set(name=TEST_SET_KEY, value=TEST_GET_VALUE, ex=EXPIRE_TIME)
 

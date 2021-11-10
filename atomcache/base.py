@@ -10,8 +10,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from starlette.datastructures import CommaSeparatedStrings
 
-from .backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
-from .redis import RedisCacheBackend
+from atomcache.backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
+from atomcache.redis import RedisCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
 MIN_CACHE_EXPIRE = 30
@@ -118,10 +118,7 @@ class Cache:
         if self._cache_control:
             return None
         cached, _ = await self.backend.get(
-            key=self.get_key(cache_id),
-            timeout=self._lock_timeout,
-            with_lock=with_lock,
-            lockspace=lockspace,
+            key=self.get_key(cache_id), timeout=self._lock_timeout, with_lock=with_lock, lockspace=lockspace
         )
         if cached is not None and decode:
             return json.loads(cached)
@@ -212,5 +209,5 @@ class Cache:
         self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
 
 
-def cached_response_handler(_: Request, exc: CachedResponse):
+def cached_response_handler(_: Request, exc: CachedResponse) -> Response:
     return exc.response

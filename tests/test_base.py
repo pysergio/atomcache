@@ -1,112 +1,34 @@
 import asyncio
 import json
-from typing import Optional
 
-import aioredis
 import pytest
 from aioredis.client import Redis
-from fastapi import Depends
-from fastapi.applications import FastAPI
-from fastapi.params import Query
 from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from atomcache.base import Cache
-from atomcache.redis import DEFAULT_ENCODING
+from tests.conftest import TEST_AUTOREFRESH_ID, TEST_SET_AUTOREFRESH_VALUE
 
 pytestmark = pytest.mark.asyncio
 
 TEST_CACHE_ID = "TEST_CACHE_ID"
+TEST_REDIS_URL = "redis://0.0.0.0:6379/0"
 TEST_SET_VALUE = {"key": "test"}
-
-TEST_AUTOREFRESH_ID = "TEST_AUTOREFRESH_ID"
-TEST_SET_AUTOREFRESH_VALUE = "TEST_SET_AUTOREFRESH_VALUE"
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    policy = asyncio.get_event_loop_policy()
-    res = policy.new_event_loop()
-    res._close = res.close
-    res.close = lambda: None
-
-    yield res
-
-    res._close()
-
-
-@pytest.fixture
-async def app_with_cache():
-    app = FastAPI()
-
-    @app.post("/items/{item_id}")
-    async def set_item(item_id: int = 1, cache: Cache = Depends(Cache(exp=60, auto_refresh=True))):
-
-        await cache.set(TEST_SET_AUTOREFRESH_VALUE, TEST_AUTOREFRESH_ID)
-        return {"item_id": item_id}
-
-    @app.get("/items")
-    async def get_items(
-        q: Optional[str] = Query(None, max_length=50), cache: Cache = Depends(Cache(exp=60, auto_refresh=True))
-    ):
-        await cache.set(TEST_SET_AUTOREFRESH_VALUE, TEST_AUTOREFRESH_ID)
-
-        return [{"item_id": 1}]
-
-    yield app
-
-
-@pytest.fixture
-async def app_with_invalid_cache():
-    app = FastAPI()
-
-    @app.get("/empty")
-    async def empty_endpoint(q: str, cache: Cache = Depends(Cache(exp=60, auto_refresh=True))):
-
-        return {}
-
-    yield app
-
-
-@pytest.fixture
-async def app_without_cache():
-    app = FastAPI()
-
-    @app.get("/")
-    async def root():
-        return {"message": "Hello World"}
-
-    return app
-
-
-@pytest.fixture(scope="session")
-async def redis_client() -> Redis:
-    redis: Redis = aioredis.from_url(url="redis://127.0.0.1:6379/0", encoding=DEFAULT_ENCODING)
-    async with redis.client() as client:
-        yield client
-
-
-@pytest.fixture(autouse=True)
-async def clean_redis(redis_client: Redis) -> Redis:
-    await redis_client.flushall()
 
 
 async def test_cache_init(app_with_cache, redis_client):
-    cache = Cache(exp=30)
-    await cache.init(app_with_cache, redis_client)
+    await Cache.init(app_with_cache, redis_client)
 
 
 async def test_cache_init_with_invalid_params(app_with_invalid_cache, redis_client):
-    cache = Cache(exp=30)
     with pytest.raises(ValueError):
-        await cache.init(app_with_invalid_cache, redis_client)
+        await Cache.init(app_with_invalid_cache, redis_client)
 
 
 async def test_cache_set_json_object(app_without_cache, redis_client: Redis):
     cache = Cache(exp=30)
-    await cache.init(app_without_cache, redis_client)
+    await Cache.init(app_without_cache, redis_client)
 
     cache.set(response=TEST_SET_VALUE, cache_id=TEST_CACHE_ID)
     await asyncio.sleep(1)
@@ -118,7 +40,7 @@ async def test_cache_set_json_object(app_without_cache, redis_client: Redis):
 
 async def test_cache_set_response_object(app_without_cache, redis_client: Redis):
     cache = Cache(exp=30)
-    await cache.init(app_without_cache, redis_client)
+    await Cache.init(app_without_cache, redis_client)
 
     response_obj = JSONResponse({"hello": "world"})
 
@@ -148,7 +70,7 @@ async def test_cache_set_object_with_no_store_cache(app_without_cache, redis_cli
 
 async def test_cache_get(app_without_cache, redis_client: Redis):
     cache = Cache(exp=30)
-    await cache.init(app_without_cache, redis_client)
+    await Cache.init(app_without_cache, redis_client)
     jsonified = json.dumps(TEST_SET_VALUE)
     await redis_client.set(cache.get_key(TEST_CACHE_ID), jsonified)
 
@@ -159,7 +81,7 @@ async def test_cache_get(app_without_cache, redis_client: Redis):
 
 async def test_cache_get_without_decode(app_without_cache, redis_client: Redis):
     cache = Cache(exp=30)
-    await cache.init(app_without_cache, redis_client)
+    await Cache.init(app_without_cache, redis_client)
     jsonified = json.dumps(TEST_SET_VALUE)
     await redis_client.set(cache.get_key(TEST_CACHE_ID), jsonified)
 
@@ -170,10 +92,10 @@ async def test_cache_get_without_decode(app_without_cache, redis_client: Redis):
 
 async def test_cache_get_with_cache_control(app_without_cache, redis_client: Redis):
     cache = Cache(exp=30, cache_control=True)
+    await Cache.init(app_without_cache, redis_client)
     headers = {"Cache-Control": "no-cache"}
     request = Request({"type": "http", "headers": Headers(headers).raw})
     cache = await cache(request)
-    await cache.init(app_without_cache, redis_client)
     jsonified = json.dumps(TEST_SET_VALUE)
     await redis_client.set(cache.get_key(TEST_CACHE_ID), jsonified)
 
@@ -193,10 +115,10 @@ async def test_cache_call():
 
 async def test_cache_raise_try_return_none(app_without_cache, redis_client: Redis):
     cache = Cache(exp=30, cache_control=True)
+    await Cache.init(app_without_cache, redis_client)
     headers = {"Cache-Control": "no-cache"}
     request = Request({"type": "http", "headers": Headers(headers).raw})
     cache = await cache(request)
-    await cache.init(app_without_cache, redis_client)
 
     await redis_client.set(TEST_CACHE_ID, json.dumps(TEST_SET_VALUE))
 
@@ -219,7 +141,7 @@ async def test_cache_call_with_cache_control():
 async def test_cache_call_with_auto_refresh(app_without_cache, redis_client):
 
     cache = Cache(exp=60, auto_refresh=True)
-    await cache.init(app_without_cache, redis_client)
+    await Cache.init(app_without_cache, redis_client)
     request = Request({"type": "http"})
 
     await cache(request)

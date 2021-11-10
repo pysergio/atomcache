@@ -4,7 +4,7 @@ set -e
 set -x
 
 flake8 atomcache
-mypy atomcache
+# mypy atomcache
 
 black --check atomcache --diff
 isort --check-only atomcache
