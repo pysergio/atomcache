@@ -34,19 +34,6 @@ def event_loop():
     res._close()
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    policy = asyncio.get_event_loop_policy()
-    res = policy.new_event_loop()
-    res._close = res.close
-    res.close = lambda: None
-
-    yield res
-
-    res._close()
-
-
 @pytest.fixture
 async def redis_client() -> Redis:
     redis: Redis = await aioredis.from_url(url=TEST_REDIS_URL, encoding=DEFAULT_ENCODING)
@@ -66,7 +53,7 @@ async def app_with_cache():
     @app.get("/items/{item_id}")
     async def get_item_by_id(item_id: int = 1, cache: Cache = Depends(Cache(exp=60, auto_refresh=True))):
 
-        await cache.set(TEST_SET_AUTOREFRESH_VALUE, TEST_AUTOREFRESH_ID)
+        cache.set(TEST_SET_AUTOREFRESH_VALUE, TEST_AUTOREFRESH_ID)
         return {"item_id": item_id}
 
     @app.get("/items")
