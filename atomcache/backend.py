@@ -1,7 +1,7 @@
-from typing import AnyStr, Optional, Tuple, Union
+from typing import Optional, Tuple, TypeVar
 
-KT = Union[AnyStr, float, int]
-VT = Union[AnyStr, float, int]
+KT = TypeVar("KT")
+VT = TypeVar("VT")
 TTL = int
 DEFAULT_LOCK_TIMEOUT = 5
 
@@ -14,19 +14,18 @@ class BaseCacheBackend:
         key: KT,
         default: VT = None,
         timeout: int = DEFAULT_LOCK_TIMEOUT,
-        with_lock=True,
+        with_lock: bool = True,
         lockspace: Optional[str] = None,
-        **kwargs
     ) -> Tuple[VT, TTL]:
         raise NotImplementedError
 
-    async def set(self, key: KT, value: VT, expire: int, unlock=True, **kwargs) -> bool:  # noqa: WPS125, WPS110
+    async def set(self, key: KT, value: VT, expire: int, unlock: bool = True) -> bool:  # noqa: WPS125, WPS110
         raise NotImplementedError
 
     async def lock(self, key: KT, timeout: int = DEFAULT_LOCK_TIMEOUT) -> bool:
         raise NotImplementedError
 
-    async def unlock(self, key: KT, **kwargs) -> bool:
+    async def unlock(self, key: KT) -> bool:
         raise NotImplementedError
 
     async def expire(self, key: KT, ttl: int) -> bool:

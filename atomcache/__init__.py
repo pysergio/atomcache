@@ -2,4 +2,4 @@
 
 __version__ = "0.1.0"
 
-from .base import Cache as Cache
+from .base import Cache  # noqa

@@ -1,77 +1,65 @@
 import asyncio
 from typing import Awaitable, Optional, Tuple
 
-from aioredis.client import Redis, PubSub
-from .backend import (
-    DEFAULT_LOCK_TIMEOUT,
-    KT,
-    TTL,
-    VT,
-    BaseCacheBackend,
-)
+from aioredis.client import KeyT, Redis
+
+from atomcache.backend import DEFAULT_LOCK_TIMEOUT, KT, TTL, VT, BaseCacheBackend
 
 DEFAULT_ENCODING = "utf-8"
+DEFAULT_TTL = 0
 
 
 class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
     lock_name = "__"
 
-    def __init__(self, redis: Redis, encoding: str = DEFAULT_ENCODING) -> None:
-        self.client = redis  # client might be used to perform direct redis calls
-        self.client
-        self._encoding = encoding
-        self._channel: Optional[PubSub] = None
+    def __init__(self, redis: Redis) -> None:
+        self._client = redis
+        self._db = self.client.connection_pool.connection_kwargs["db"]
 
-    def lock_key(self, key: str):
+    @property
+    def client(self) -> Redis:
+        """Client might be used to perform direct redis calls
+        Returns:
+            Redis: Client from connection pool
+        """
+        return self._client.client()
+
+    def lock_key(self, key: str) -> str:
         return f"{key}{self.lock_name}"
-
-    async def init(self):
-        self._channel = self.client.pubsub()
-        await self._channel.psubscribe(f"__keyspace@{self.client.connection.db}__:*")
 
     async def get(
         self,
-        key: KT,
+        key: KeyT,
         default: VT = None,
         timeout: int = DEFAULT_LOCK_TIMEOUT,
-        with_lock=True,
+        with_lock: bool = True,
         lockspace: Optional[str] = None,
-        **kwargs,
     ) -> Tuple[VT, TTL]:
-        kwargs.setdefault("encoding", self._encoding)
         pipe: Redis = self.client.pipeline()
-        pipe.get(key, **kwargs)
+        pipe.get(key)
         pipe.ttl(key)
         if not with_lock:
             cached_value, ttl = await pipe.execute()
-            return cached_value or default, ttl
+            return cached_value.decode() or default, ttl
         lock_name = self.lock_key(lockspace) if lockspace else self.lock_key(key)
         pipe.get(lock_name)
         cached_value, ttl, lock = await pipe.execute()
 
         if cached_value:
-            return cached_value, ttl
+            return cached_value.decode(), ttl
 
-        if not lock and await self.lock(lock_name):
-            return default, 0
+        if not lock and await self.lock(lock_name, timeout=timeout):
+            return default, DEFAULT_TTL
         try:
-            return await asyncio.wait_for(self._get_or_wait(key, **kwargs), timeout=timeout)
+            return await asyncio.wait_for(self._get_or_wait(key), timeout=timeout)
         except (asyncio.exceptions.TimeoutError, LookupError):
-            return default, 0
+            return default, DEFAULT_TTL
 
-    async def set(
-        self,
-        key: KT,
-        value: VT,  # noqa: WPS110
-        expire: int,
-        unlock=True,
-        **kwargs,
-    ) -> bool:
-
+    async def set(self, key: KT, value: VT, expire: int, unlock=True) -> bool:  # noqa: WPS110
         if not unlock:
-            return await self.client.set(key, value, expire=expire, **kwargs)
-        pipe: Redis = self.client.pipeline()
-        pipe.set(key, value, expire=expire, **kwargs)
+            return await self.client.set(key, value, ex=expire)
+        pipe = self.client.pipeline()
+        pipe.set(key, value, ex=expire)
         pipe.delete(self.lock_key(key))
         is_setted, _ = await pipe.execute()
         return is_setted
@@ -80,7 +68,7 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
         return await self.client.expire(key, ttl)
 
     async def lock(self, key: KT, timeout: int = DEFAULT_LOCK_TIMEOUT) -> bool:
-        return await self.client.set(key, value=b"1", expire=timeout, exist="SET_IF_NOT_EXIST")
+        return await self.client.set(key, value=b"1", ex=timeout, nx=True)
 
     async def unlock(self, key: KT) -> bool:
         return await self.client.delete(self.lock_key(key))
@@ -96,27 +84,23 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
         return bool(exists)
 
     async def flush(self) -> bool:
-        return await self.client.flushdb(async_op=True)
+        return await self.client.flushdb(asynchronous=True)
 
     def close(self) -> Awaitable[None]:
         return self.client.close()
 
-    async def _get_or_wait(self, key: KT, **kwargs) -> Tuple[VT, TTL]:  # noqa: WPS231
-        channel = await self.get_channel()
-        while True:
-            msg = await self._channel.get_message(ignore_subscribe_messages=True)
-            # TODO: check for the key set message
-            # received_key = msg["type"].decode("utf-8").split(":")[1]
-            # if received_key == key:
-            #     if msg["type"] == "set":
-            #         break
+    async def _get_or_wait(self, key: KT) -> Tuple[VT, TTL]:
+        async with self.client.pubsub(ignore_subscribe_messages=True) as channel:
+            await channel.psubscribe(f"__keyspace@{self._db}__:{key}")
+            async for msg in channel.listen():
+                msg_type = msg["data"]
+                if msg_type == b"set":
+                    break
+                if msg_type in {b"expired", b"del", b"expire"}:
+                    raise LookupError()
 
-            #     if msg["type"]  in {"expired", "del", "expire"}:
-            #         raise LookupError()
-            break
-
-        pipe: Redis = self.client.pipeline()
-        pipe.get(key, **kwargs)
+        pipe = self.client.pipeline()
+        pipe.get(key)
         pipe.ttl(key)
-
-        return await pipe.execute()
+        value, ttl = await pipe.execute()  # noqa: WPS110
+        return value.decode(), ttl
