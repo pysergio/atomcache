@@ -4,8 +4,8 @@
 name: atomcache
 
 on:
-  #push:
-    #branches: [ test-workflow ]
+  push:
+    branches: '*'
   pull_request:
     branches: [ master ]
 
@@ -20,11 +20,8 @@ jobs:
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "redis-cli config set notify-keyspace-events KEA"
+    
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python 3.8
@@ -33,6 +30,7 @@ jobs:
         python-version: 3.8
     - name: Install dependencies
       run: |
+        pip install poetry
         poetry install
     - name: Test with pytest
       run: poetry run scripts/test
