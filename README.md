@@ -21,6 +21,11 @@ $ pip install atomcache
 
 ## Explanation schema
 
+![Class Diagram](http://www.plantuml.com/plantuml/proxy?src=https://raw.githubusercontent.com/pysergio/atomcache/master/README.md)
+
+<details markdown="1">
+<summary>As UML</summary>
+
 ```plantuml
 @startuml
     !theme materia
@@ -55,6 +60,8 @@ $ pip install atomcache
     end
 @enduml
 ```
+</details>
+
 ## Examples:
 
 ### Usage as FastAPI Dependency
