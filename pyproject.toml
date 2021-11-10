@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "atomcache"
-version = "0.1.0"
+version = "0.5.0"
 description = "Asynchronous cache manager designed for horizontally scaled web applications."
 authors = ["Serghei Ungurean <srg.ungurean@gmail.com>", "Nichita Morcotilo"]
 license = "MIT"
