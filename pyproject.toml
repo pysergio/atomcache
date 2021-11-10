@@ -10,7 +10,7 @@ repository = "https://github.com/pysergio/atomcache"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-fastapi = "^0.61.2"
+fastapi = ">=0.61.2,<0.66.0"
 aioredis = "^2.0.0"
 
 [tool.poetry.dev-dependencies]
