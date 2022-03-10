@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import json
 from functools import partial
+from hashlib import sha256
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Union
 
 from aioredis.client import Redis
@@ -147,7 +148,7 @@ class Cache:
             response = Response(media_type="application/json")
             if_none_match = self._request.headers.get("if-none-match")
             response.headers["Cache-Control"] = f"max-age={ttl}"
-            etag = f"W/{hash(cached_content)}"  # noqa: WPS237 # TODO: Change hash function to SHA256 (API terminal ref)
+            etag = f"W/{hashsum(cached_content)}"
             if if_none_match == etag:
                 response.status_code = 304
             else:
@@ -211,3 +212,7 @@ class Cache:
 
 def cached_response_handler(_: Request, exc: CachedResponse) -> Response:
     return exc.response
+
+
+def hashsum(obj: str) -> str:  # noqa: WPS110
+    return sha256(obj.encode()).hexdigest()

@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "atomcache"
-version = "0.5.0"
+version = "0.5.2"
 description = "Asynchronous cache manager designed for horizontally scaled web applications."
-authors = ["Serghei Ungurean <srg.ungurean@gmail.com>", "Nichita Morcotilo"]
+authors = ["Serghei Ungurean <srg.ungurean@gmail.com>", "Nichita Morcotilo <nmorkotilo@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/pysergio/atomcache"
