@@ -3,7 +3,7 @@ from typing import Awaitable, Optional, Tuple
 
 from aioredis.client import KeyT, Redis
 
-from atomcache.backend import DEFAULT_LOCK_TIMEOUT, KT, TTL, VT, BaseCacheBackend
+from .backend import DEFAULT_LOCK_TIMEOUT, KT, TTL, VT, BaseCacheBackend
 
 DEFAULT_ENCODING = "utf-8"
 DEFAULT_TTL = 0

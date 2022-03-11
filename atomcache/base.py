@@ -11,8 +11,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from starlette.datastructures import CommaSeparatedStrings
 
-from atomcache.backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
-from atomcache.redis import RedisCacheBackend
+from .backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
+from .redis import RedisCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
 MIN_CACHE_EXPIRE = 30
