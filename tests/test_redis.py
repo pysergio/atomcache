@@ -185,7 +185,6 @@ async def test_get_or_wait_multiple_commands(redis_client: Redis):
     await redis_client.delete(TEST_SET_KEY)
 
     get_task = asyncio.create_task(redis_backend._get_or_wait(TEST_SET_KEY))
-    await asyncio.sleep(1)
     await redis_client.get(TEST_SET_KEY)
     await redis_client.set(TEST_SET_KEY, TEST_GET_VALUE, ex=EXPIRE_TIME)
 
