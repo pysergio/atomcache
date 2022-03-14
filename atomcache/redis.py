@@ -48,7 +48,7 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
             if cached_value:
                 return cached_value.decode(), ttl
 
-            if not lock and await self.lock(lock_name, timeout=timeout):
+            if not lock and await self.lock(lockspace or key, timeout=timeout):
                 return default, DEFAULT_TTL
             try:
                 return await asyncio.wait_for(self._get_or_wait(key), timeout=timeout)
@@ -71,7 +71,7 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
 
     async def lock(self, key: KT, timeout: int = DEFAULT_LOCK_TIMEOUT) -> bool:
         async with self._redis.client() as conn:
-            return await conn.set(key, value=b"1", ex=timeout, nx=True)
+            return await conn.set(self.lock_key(key), value=b"1", ex=timeout, nx=True)
 
     async def unlock(self, key: KT) -> bool:
         async with self._redis.client() as conn:
