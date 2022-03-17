@@ -3,7 +3,7 @@ from typing import Awaitable, Optional, Tuple
 
 from aioredis.client import KeyT, Redis
 
-from .backend import DEFAULT_LOCK_TIMEOUT, KT, TTL, VT, BaseCacheBackend
+from .backend import DEFAULT_LOCK_TIMEOUT, EX, KT, TTL, VT, BaseCacheBackend
 
 DEFAULT_ENCODING = "utf-8"
 DEFAULT_TTL = 0
@@ -55,7 +55,7 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
             except (asyncio.exceptions.TimeoutError, LookupError):
                 return default, DEFAULT_TTL
 
-    async def set(self, key: KT, value: VT, expire: int, unlock=True) -> bool:  # noqa: WPS110
+    async def set(self, key: KT, value: VT, expire: EX, unlock=True) -> bool:  # noqa: WPS110
         async with self._redis.client() as conn:
             if not unlock:
                 return await conn.set(key, value, ex=expire)

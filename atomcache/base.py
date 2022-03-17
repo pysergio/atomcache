@@ -11,11 +11,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from starlette.datastructures import CommaSeparatedStrings
 
-from .backend import DEFAULT_LOCK_TIMEOUT, BaseCacheBackend
+from .backend import DEFAULT_LOCK_TIMEOUT, EX, BaseCacheBackend
 from .redis import RedisCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
-MIN_CACHE_EXPIRE = 30
 
 
 class CachedResponse(Exception):
@@ -34,7 +33,7 @@ class Cache:
 
     def __init__(
         self,
-        exp: int,
+        exp: EX,
         auto_refresh: bool = False,
         cache_control: bool = False,
         namespace: Optional[str] = None,
@@ -42,7 +41,7 @@ class Cache:
     ):
         """Atomic cache manager.
         Args:
-            exp (int): Cache TTL
+            exp (int): Cache expire. None mean infinite.
             auto_refresh (bool, optional): Refresh cache in background. Defaults to False.
             cache_control (bool, optional): React based on cache Cache-Control from request's header. Defaults to False.
             namespace (Optional[str], optional): Cache storage namespace. Defaults is the route path.
@@ -58,8 +57,9 @@ class Cache:
             await asyncio.sleep(10)  # Do some heavy work for 10 sec, see `lock_timeout`
             return cache.set(response, cache_id=cache_id)
         """
+        assert not auto_refresh or exp is not None, "Autorefresh doesn't support inifinite rate expire"
         assert not auto_refresh or exp >= MIN_AUTOREFRESH_RATE, f"Min autorefresh rate is {MIN_AUTOREFRESH_RATE}"
-        assert exp >= MIN_CACHE_EXPIRE, f"Min cache expire is {MIN_CACHE_EXPIRE}"
+        assert exp is None or exp >= lock_timeout, f"ValueError: {lock_timeout=} must be less than {exp=}"
         self.auto_refresh = auto_refresh
         self._expire = exp
         self.namespace = namespace
