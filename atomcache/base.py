@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+import logging
 from functools import partial
 from hashlib import sha256
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Union
@@ -15,7 +16,14 @@ from .backend import DEFAULT_LOCK_TIMEOUT, EX, BaseCacheBackend
 from .redis import RedisCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
+logger = logging.getLogger('atomcache')
+logger.setLevel(logging.INFO)
 
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+logger.addHandler(ch)
 
 class CachedResponse(Exception):
     def __init__(self, response: Response) -> None:
@@ -193,22 +201,28 @@ class Cache:
                     cache.set_autorefresh_callback(route.endpoint)
 
     async def _autorefresh(self):
-        key = self.get_key()
+        logger.warning("Autorefresh starting")
 
-        ttl = await self.backend.ttl(key)
+        try:
+            key = self.get_key()
 
-        time_until_refresh = ttl - self._lock_timeout  # In case key is not setted ttl is -2
+            ttl = await self.backend.ttl(key)
 
-        if time_until_refresh > 0:
-            await asyncio.sleep(time_until_refresh)
-        if await self.backend.lock(key, timeout=self._lock_timeout):
-            if asyncio.iscoroutinefunction(self._autorefresh_callback):
-                await self._autorefresh_callback()
-            else:
-                self._autorefresh_callback()
-            await self.backend.unlock(key)
-        self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
+            time_until_refresh = ttl - self._lock_timeout  # In case key is not setted ttl is -2
 
+            if time_until_refresh > 0:
+                await asyncio.sleep(time_until_refresh)
+            if await self.backend.lock(key, timeout=self._lock_timeout):
+                if asyncio.iscoroutinefunction(self._autorefresh_callback):
+                    await self._autorefresh_callback()
+                else:
+                    self._autorefresh_callback()
+                await self.backend.unlock(key)
+            self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
+        except Exception as e:
+            logger.error(f"Exception raised {e}")
+        
+        logger.warning("Autorefresh scheduled")
 
 def cached_response_handler(_: Request, exc: CachedResponse) -> Response:
     return exc.response

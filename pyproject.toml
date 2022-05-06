@@ -12,6 +12,7 @@ repository = "https://github.com/pysergio/atomcache"
 python = "^3.7"
 fastapi = "^0.61.2"
 aioredis = "^2.0.0"
+loguru = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -23,6 +24,7 @@ black = "^21.10b0"
 wemake-python-styleguide = "^0.15.2"
 mypy = "^0.910"
 flake8-fixme = "^1.1"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
