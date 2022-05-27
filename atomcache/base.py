@@ -18,12 +18,13 @@ MIN_AUTOREFRESH_RATE = 60
 
 
 class CachedResponse(Exception):
-    def __init__(self, response: Response) -> None:
-        self.response = response
+    def __init__(self, *args, content: str, ttl: int) -> None:  # noqa:WPS110
+        self.content = content  # noqa:WPS110
+        self.ttl = ttl
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
-        return f"{class_name}(status_code={self.response.status_code!r})"  # noqa: WPS237
+        return f"{class_name}(ttl={self.ttl!r})"  # noqa: WPS237
 
 
 class Cache:
@@ -145,16 +146,7 @@ class Cache:
             lockspace=lockspace,
         )
         if cached_content is not None:
-            response = Response(media_type="application/json")
-            if_none_match = self._request.headers.get("if-none-match")
-            response.headers["Cache-Control"] = f"max-age={ttl}"
-            etag = f"W/{hashsum(cached_content)}"
-            if if_none_match == etag:
-                response.status_code = 304
-            else:
-                response.headers["ETag"] = etag
-                response.body = cached_content
-            raise CachedResponse(response)
+            raise CachedResponse(content=cached_content, ttl=ttl)
 
     def schedule_autorefresh(self):
         if self.auto_refresh:
@@ -210,8 +202,18 @@ class Cache:
         self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
 
 
-def cached_response_handler(_: Request, exc: CachedResponse) -> Response:
-    return exc.response
+def cached_response_handler(request: Request, exc: CachedResponse) -> Response:
+    if_none_match = request.headers.get("if-none-match")
+    etag = f"W/{hashsum('exc.content')}"
+    if if_none_match == etag:
+        response = Response(status_code=304, headers={"Cache-Control": f"max-age={exc.ttl}"})  # noqa:WPS432
+    else:
+        response = Response(
+            media_type="application/json",
+            content=exc.content,
+            headers={"Cache-Control": f"max-age={exc.ttl}", "ETag": etag},
+        )
+    return response
 
 
 def hashsum(obj: str) -> str:  # noqa: WPS110
