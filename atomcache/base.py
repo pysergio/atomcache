@@ -204,7 +204,7 @@ class Cache:
 
 def cached_response_handler(request: Request, exc: CachedResponse) -> Response:
     if_none_match = request.headers.get("if-none-match")
-    etag = f"W/{hashsum('exc.content')}"
+    etag = f"W/{hashsum(exc.content)}"
     if if_none_match == etag:
         response = Response(status_code=304, headers={"Cache-Control": f"max-age={exc.ttl}"})  # noqa:WPS432
     else:
