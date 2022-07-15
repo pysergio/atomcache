@@ -3,7 +3,7 @@ import inspect
 import json
 from functools import partial
 from hashlib import sha256
-from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Union
+from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, TypeVar, Union
 
 from aioredis.client import Redis
 from fastapi import FastAPI, Request, Response, params
@@ -15,6 +15,7 @@ from .backend import DEFAULT_LOCK_TIMEOUT, EX, BaseCacheBackend
 from .redis import RedisCacheBackend
 
 MIN_AUTOREFRESH_RATE = 60
+_ResponseT = TypeVar("_ResponseT")
 
 
 class CachedResponse(Exception):
@@ -101,7 +102,7 @@ class Cache:
     def get_key(self, cache_id: str = "") -> str:
         return f"{self.namespace}{cache_id}"
 
-    def set(self, response: Any, cache_id: str = "") -> dict:  # noqa: WPS125
+    def set(self, response: _ResponseT, cache_id: str = "") -> _ResponseT:  # noqa: WPS125
         if isinstance(response, Response):
             cache = response.body
         else:
@@ -116,7 +117,7 @@ class Cache:
         with_lock=True,
         decode=True,
         lockspace: Optional[str] = None,
-    ):
+    ) -> Any:
         if self._cache_control:
             return None
         cached, _ = await self.backend.get(
@@ -126,7 +127,7 @@ class Cache:
             return json.loads(cached)
         return cached
 
-    async def raise_try(self, cache_id: str = "", with_lock=True, lockspace: Optional[str] = None):
+    async def raise_try(self, cache_id: str = "", with_lock=True, lockspace: Optional[str] = None) -> None:
         """Try to raise Response from cache otherwise do nothing.
 
         Args:
