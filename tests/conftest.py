@@ -32,7 +32,6 @@ def event_loop():
     res._close()
 
 
-
 @pytest.fixture
 async def app_with_cache():
     app = FastAPI()

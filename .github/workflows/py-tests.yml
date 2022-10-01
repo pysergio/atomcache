@@ -19,8 +19,6 @@ jobs:
         image: redis
         ports:
           - 6379:6379
-        options: >-
-          --health-cmd "redis-cli config set notify-keyspace-events KEA"
     
     steps:
     - uses: actions/checkout@v2

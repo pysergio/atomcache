@@ -18,9 +18,9 @@ MIN_AUTOREFRESH_RATE = 60
 _ResponseT = TypeVar("_ResponseT")
 
 
-class CachedResponse(Exception):
-    def __init__(self, *args, content: str, ttl: int) -> None:  # noqa:WPS110
-        self.content = content  # noqa:WPS110
+class CachedResponse(Exception):  # noqa: N818
+    def __init__(self, *args, content: str, ttl: int) -> None:
+        self.content = content
         self.ttl = ttl
 
     def __repr__(self) -> str:
@@ -157,7 +157,7 @@ class Cache:
     async def init(cls, app: FastAPI, cache_client: Redis, autorefresh: bool = True):
         cls.app = app
         if isinstance(cache_client, Redis):
-            cls.backend = RedisCacheBackend(cache_client)
+            cls.backend = await RedisCacheBackend(cache_client)
         else:
             raise TypeError(f"Unsupported {type(cache_client)} cache client type.")
         app.add_exception_handler(CachedResponse, cached_response_handler)
@@ -217,5 +217,5 @@ def cached_response_handler(request: Request, exc: CachedResponse) -> Response:
     return response
 
 
-def hashsum(obj: str) -> str:  # noqa: WPS110
+def hashsum(obj: str) -> str:
     return sha256(obj.encode()).hexdigest()

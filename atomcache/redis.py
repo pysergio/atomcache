@@ -1,5 +1,5 @@
 import asyncio
-from typing import Awaitable, Optional, Tuple
+from typing import Any, Awaitable, Generator, Optional, Tuple
 
 from aioredis.client import KeyT, Redis
 
@@ -15,6 +15,13 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
     def __init__(self, redis: Redis) -> None:
         self._redis = redis
         self._db = self.client.connection_pool.connection_kwargs["db"]
+
+    def __await__(self) -> Generator[Any, None, "RedisCacheBackend"]:  # noqa:WPS611
+        """Setup keyspace notification events required by `_get_or_wait`"""
+        yield from self._redis.execute_command(  # noqa:WPS609
+            "config", "set", "notify-keyspace-events", "KEA"
+        ).__await__()
+        return self
 
     @property
     def client(self) -> Redis:
