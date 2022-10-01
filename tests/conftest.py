@@ -18,8 +18,6 @@ TEST_REDIS_URL = "redis://0.0.0.0:6379/0"
 TEST_AUTOREFRESH_ID = "TEST_AUTOREFRESH_ID"
 TEST_SET_AUTOREFRESH_VALUE = "TEST_SET_AUTOREFRESH_VALUE"
 
-DEFAULT_ENCODING = "utf-8"
-
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -33,17 +31,6 @@ def event_loop():
 
     res._close()
 
-
-@pytest.fixture
-async def redis_client() -> Redis:
-    redis: Redis = await aioredis.from_url(url=TEST_REDIS_URL, encoding=DEFAULT_ENCODING)
-    yield redis
-    await redis.close()
-
-
-@pytest.fixture(autouse=True)
-async def clean_redis(redis_client: Redis) -> Redis:
-    await redis_client.flushall()
 
 
 @pytest.fixture
