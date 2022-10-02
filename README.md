@@ -1,3 +1,15 @@
+<p align="center">
+<a href="https://codecov.io/gh/pysergio/atomcache"> 
+ <img src="https://codecov.io/gh/pysergio/atomcache/branch/master/graph/badge.svg?token=OVZABBE1UJ"/> 
+</a>
+<a href="https://pypi.org/project/atomcache" target="_blank">
+    <img src="https://img.shields.io/pypi/v/atomcache?color=%2334D058&label=pypi%20package" alt="Package version">
+</a>
+<a href="https://pypi.org/project/atomcache" target="_blank">
+    <img src="https://img.shields.io/pypi/pyversions/atomcache.svg?color=%2334D058" alt="Supported Python versions">
+</a>
+</p>
+
 ## Introduction
 Asynchronous cache manager designed for horizontally scaled web applications.
 **NOTE:** _Currently has implementation only for FastAPI using Redis._
