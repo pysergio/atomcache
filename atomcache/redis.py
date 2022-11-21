@@ -62,7 +62,7 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
             except (asyncio.exceptions.TimeoutError, LookupError):
                 return default, DEFAULT_TTL
 
-    async def set(self, key: KT, value: VT, expire: EX, unlock=True) -> bool:  # noqa: WPS110
+    async def set(self, key: KT, value: VT, expire: EX, unlock=True) -> bool:
         async with self._redis.client() as conn:
             if not unlock:
                 return await conn.set(key, value, ex=expire)
@@ -71,6 +71,16 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
             pipe.delete(self.lock_key(key))
             is_setted, _ = await pipe.execute()
             return is_setted
+
+    async def mget(self, *keys: KT) -> dict[KT, VT]:
+        async with self._redis.client() as conn:
+            return {k: v for k, v in zip(keys, await conn.mget(keys)) if v is not None}
+
+    async def mset(self, values: dict[KT, VT], expire: EX) -> None:
+        async with self._redis.pipeline() as pipe:
+            for key, value in values.items():
+                pipe.set(key, value, ex=expire)
+            await pipe.execute()
 
     async def expire(self, key: KT, ttl: TTL) -> bool:
         async with self._redis.client() as conn:
@@ -116,5 +126,5 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
         async with self._redis.pipeline() as pipe:
             pipe.get(key)
             pipe.ttl(key)
-            value, ttl = await pipe.execute()  # noqa: WPS110
+            value, ttl = await pipe.execute()
             return value.decode(), ttl

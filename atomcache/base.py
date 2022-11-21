@@ -111,6 +111,11 @@ class Cache:
             asyncio.ensure_future(self.backend.set(key=self.get_key(cache_id), value=cache, expire=self._expire))
         return response
 
+    def mset(self, cache: dict[str, Any]) -> dict[str, Any]:
+        encoded_cache = {self.get_key(k): json.dumps(jsonable_encoder(v)) for k, v in cache.items()}
+        asyncio.ensure_future(self.backend.mset(encoded_cache, self._expire))
+        return cache
+
     async def get(
         self,
         cache_id: str = "",
@@ -123,9 +128,15 @@ class Cache:
         cached, _ = await self.backend.get(
             key=self.get_key(cache_id), timeout=self._lock_timeout, with_lock=with_lock, lockspace=lockspace
         )
-        if cached is not None and decode:
-            return json.loads(cached)
-        return cached
+        return json.loads(cached) if cached is not None and decode else cached
+
+    async def mget(self, *cache_ids: str, decode=True) -> dict[str, Any]:
+        if not cache_ids:
+            return {}
+        cache = await self.backend.mget(*map(self.get_key, cache_ids))
+        if decode:
+            return {k.removeprefix(self.namespace): json.loads(v) for k, v in cache.items()}
+        return {k.removeprefix(self.namespace): v for k, v in cache.items()}
 
     async def raise_try(self, cache_id: str = "", with_lock=True, lockspace: Optional[str] = None) -> None:
         """Try to raise Response from cache otherwise do nothing.

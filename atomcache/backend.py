@@ -20,7 +20,13 @@ class BaseCacheBackend:
     ) -> Tuple[VT, TTL]:
         raise NotImplementedError
 
-    async def set(self, key: KT, value: VT, expire: EX, unlock: bool = True) -> bool:  # noqa: WPS125, WPS110
+    async def set(self, key: KT, value: VT, expire: EX, unlock: bool = True) -> bool:
+        raise NotImplementedError
+
+    async def mget(self, *keys: KT) -> dict[KT, VT]:
+        raise NotImplementedError
+
+    async def mset(self, hmap: dict[KT, VT], expire: EX) -> None:
         raise NotImplementedError
 
     async def lock(self, key: KT, timeout: int = DEFAULT_LOCK_TIMEOUT) -> bool:

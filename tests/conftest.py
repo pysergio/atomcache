@@ -7,6 +7,7 @@ from aioredis.client import Redis
 from fastapi import Depends
 from fastapi.applications import FastAPI
 from fastapi.params import Query
+
 from atomcache.base import Cache
 from atomcache.redis import DEFAULT_ENCODING
 
@@ -27,6 +28,7 @@ def event_loop():
     res.close = lambda: None
 
     yield res
+
 
 @pytest.fixture
 async def app_with_cache():
