@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from aioredis.client import Redis
+from redis.asyncio import Redis
 
 from atomcache.redis import RedisCacheBackend
 

@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "atomcache"
-version = "0.7.0"
+version = "0.7.1"
 description = "Asynchronous cache manager designed for horizontally scaled web applications."
-authors = ["Serghei Ungurean <srg.ungurean@gmail.com>", "Nichita Morcotilo <nmorkotilo@gmail.com>"]
+authors = ["Serghei Ungurean <srg@intelbit.io>", "Nichita Morcotilo <nmorkotilo@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/pysergio/atomcache"
@@ -10,8 +10,8 @@ repository = "https://github.com/pysergio/atomcache"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-fastapi = ">=0.61.2 <=0.85.0"
-aioredis = "^2.0.0"
+fastapi = ">=0.61.2 <=0.88.0"
+redis = "^4.3.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

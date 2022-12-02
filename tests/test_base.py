@@ -2,7 +2,7 @@ import asyncio
 import json
 
 import pytest
-from aioredis.client import Redis
+from redis.asyncio import Redis
 from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import JSONResponse

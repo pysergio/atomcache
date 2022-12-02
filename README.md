@@ -18,7 +18,7 @@ Asynchronous cache manager designed for horizontally scaled web applications.
 
 Python 3.7+
 
-* <a href="https://aioredis.readthedocs.io" class="external-link" target="_blank">aioredis</a> for cache implementation.
+* <a href="https://redis.readthedocs.io/en/latest/_modules/redis/asyncio/client.html?" class="external-link" target="_blank">redis</a> for cache implementation.
 * <a href="https://fastapi.tiangolo.com" class="external-link" target="_blank">FastAPI</a> for the web parts.
   
 ## Installation
@@ -83,14 +83,14 @@ $ pip install atomcache
 ```Python
 from typing import Optional, Callable
 
-import aioredis
+from redis.asyncio import Redis
 from fastapi import FastAPI, Depends
 from atomcache import Cache
 
 
 def create_start_app_handler(app: FastAPI) -> Callable:
     async def start_app() -> None:
-        redis: aioredis.Redis = await aioredis.from_url(url="redis://localhost", encoding="utf-8")
+        redis: Redis = await Redis.from_url(url="redis://localhost", encoding="utf-8")
         await Cache.init(app, redis)
 
     return start_app

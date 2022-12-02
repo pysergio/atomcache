@@ -5,7 +5,7 @@ from functools import partial
 from hashlib import sha256
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, TypeVar, Union
 
-from aioredis.client import Redis
+from redis.asyncio import Redis
 from fastapi import FastAPI, Request, Response, params
 from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute

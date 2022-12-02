@@ -1,9 +1,9 @@
 import asyncio
 from typing import Optional
 
-import aioredis
+from redis.asyncio import Redis
+
 import pytest
-from aioredis.client import Redis
 from fastapi import Depends
 from fastapi.applications import FastAPI
 from fastapi.params import Query
@@ -75,7 +75,7 @@ async def app_without_cache():
 
 @pytest.fixture(scope="session")
 async def redis_client() -> Redis:
-    redis: Redis = aioredis.from_url(url=TEST_REDIS_URL, encoding=DEFAULT_ENCODING)
+    redis: Redis = Redis.from_url(url=TEST_REDIS_URL, encoding=DEFAULT_ENCODING)
     async with redis.client() as client:
         yield client
 

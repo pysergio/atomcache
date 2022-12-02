@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Awaitable, Generator, Optional, Tuple
 
-from aioredis.client import KeyT, Redis
+from redis.asyncio.client import KeyT, Redis
 
 from .backend import DEFAULT_LOCK_TIMEOUT, EX, KT, TTL, VT, BaseCacheBackend
 
