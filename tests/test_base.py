@@ -2,12 +2,12 @@ import asyncio
 import json
 
 import pytest
-from redis.asyncio import Redis
 from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from atomcache.base import Cache
+from redis.asyncio import Redis
 from tests.conftest import TEST_AUTOREFRESH_ID, TEST_SET_AUTOREFRESH_VALUE
 
 pytestmark = pytest.mark.asyncio
@@ -139,7 +139,6 @@ async def test_cache_call_with_cache_control():
 
 
 async def test_cache_call_with_auto_refresh(app_without_cache, redis_client):
-
     cache = Cache(exp=60, auto_refresh=True)
     await Cache.init(app_without_cache, redis_client)
     request = Request({"type": "http"})

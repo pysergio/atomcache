@@ -1,9 +1,9 @@
 import asyncio
 
 import pytest
-from redis.asyncio import Redis
 
 from atomcache.redis import RedisCacheBackend
+from redis.asyncio import Redis
 
 pytestmark = pytest.mark.asyncio
 

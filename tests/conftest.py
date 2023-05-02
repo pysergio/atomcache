@@ -1,8 +1,6 @@
 import asyncio
 from typing import Optional
 
-from redis.asyncio import Redis
-
 import pytest
 from fastapi import Depends
 from fastapi.applications import FastAPI
@@ -10,6 +8,7 @@ from fastapi.params import Query
 
 from atomcache.base import Cache
 from atomcache.redis import DEFAULT_ENCODING
+from redis.asyncio import Redis
 
 pytestmark = pytest.mark.asyncio
 
@@ -36,7 +35,6 @@ async def app_with_cache():
 
     @app.get("/items/{item_id}")
     async def get_item_by_id(item_id: int = 1, cache: Cache = Depends(Cache(exp=60, auto_refresh=True))):
-
         cache.set(TEST_SET_AUTOREFRESH_VALUE, TEST_AUTOREFRESH_ID)
         return {"item_id": item_id}
 
@@ -44,7 +42,6 @@ async def app_with_cache():
     async def get_items(
         q: Optional[str] = Query(None, max_length=50), cache: Cache = Depends(Cache(exp=60, auto_refresh=True))
     ):
-
         return [{"item_id": 1}]
 
     yield app
@@ -56,7 +53,6 @@ async def app_with_invalid_cache():
 
     @app.get("/empty")
     async def empty_endpoint(q: str, cache: Cache = Depends(Cache(exp=60, auto_refresh=True))):
-
         return {}
 
     yield app

@@ -5,11 +5,12 @@ from functools import partial
 from hashlib import sha256
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, TypeVar, Union
 
-from redis.asyncio import Redis
 from fastapi import FastAPI, Request, Response, params
 from fastapi.encoders import jsonable_encoder
 from fastapi.routing import APIRoute
 from starlette.datastructures import CommaSeparatedStrings
+
+from redis.asyncio import Redis
 
 from .backend import DEFAULT_LOCK_TIMEOUT, EX, BaseCacheBackend
 from .redis import RedisCacheBackend
