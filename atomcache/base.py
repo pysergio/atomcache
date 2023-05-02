@@ -69,15 +69,11 @@ class Cache:
         self._allow_cache_control = cache_control
         self._autorefresh_callback: Union[Callable, Awaitable, None] = None
         self._autorefresh_task: Optional[asyncio.Future] = None
-        self._request: Optional[Request] = None
-        self._cache_control: bool = False
+        self._no_cache: bool = False
 
     async def __call__(self, request: Request):
-        self._request = request
         if self._allow_cache_control:
-            self._cache_control = "no-cache" in CommaSeparatedStrings(request.headers.get("Cache-Control", ""))
-        if self.auto_refresh:
-            await self.raise_try()
+            self._no_cache = "no-cache" in CommaSeparatedStrings(request.headers.get("Cache-Control", ""))
         return self
 
     def set_namespace(self, namespace: str):  # noqa: WPS615 FIXME: unpythonic setter
@@ -107,7 +103,7 @@ class Cache:
             cache = response.body
         else:
             cache = json.dumps(jsonable_encoder(response))
-        if not self._cache_control:
+        if not self._no_cache:
             asyncio.ensure_future(self.backend.set(key=self.get_key(cache_id), value=cache, expire=self._expire))
         return response
 
@@ -123,7 +119,7 @@ class Cache:
         decode=True,
         lockspace: Optional[str] = None,
     ) -> Any:
-        if self._cache_control:
+        if self._no_cache:
             return None
         cached, _ = await self.backend.get(
             key=self.get_key(cache_id), timeout=self._lock_timeout, with_lock=with_lock, lockspace=lockspace
@@ -149,7 +145,7 @@ class Cache:
         Raises:
             CachedResponse: generate response from cache.
         """
-        if self._cache_control:
+        if self._no_cache:
             return
         cached_content, ttl = await self.backend.get(
             self.get_key(cache_id),

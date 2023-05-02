@@ -135,7 +135,7 @@ async def test_cache_call_with_cache_control():
 
     await cache(request)
 
-    assert cache._cache_control
+    assert cache._no_cache
 
 
 async def test_cache_call_with_auto_refresh(app_without_cache, redis_client):
