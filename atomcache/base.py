@@ -70,11 +70,16 @@ class Cache:
         self._allow_cache_control = cache_control
         self._autorefresh_callback: Union[Callable, Awaitable, None] = None
         self._autorefresh_task: Optional[asyncio.Future] = None
+        self._refreshing: bool = False
         self._no_cache: bool = False
 
     async def __call__(self, request: Request):
         if self._allow_cache_control:
             self._no_cache = "no-cache" in CommaSeparatedStrings(request.headers.get("Cache-Control", ""))
+        if self._refreshing:
+            cached_content, ttl = await self.backend.get(self.get_key(), with_lock=False)
+            if cached_content is not None:
+                raise CachedResponse(content=cached_content, ttl=ttl)
         return self
 
     def set_namespace(self, namespace: str):  # noqa: WPS615 FIXME: unpythonic setter
@@ -93,7 +98,14 @@ class Cache:
             kwargs[prm.name] = default
             if default == inspect._empty or isinstance(default, params.Depends):  # noqa: WPS437
                 raise ValueError(f"{endpoint} does not support auto cache refresh. Args {prm.name} has no default")
-        self._autorefresh_callback = partial(endpoint, **kwargs)
+
+        autorefresh_callback = partial(endpoint, **kwargs)
+        if asyncio.iscoroutinefunction(endpoint):
+            self._autorefresh_callback = autorefresh_callback
+        else:
+            loop = asyncio.get_running_loop()
+            self._autorefresh_callback = partial(loop.run_in_executor, None, autorefresh_callback)
+
         Cache.autorefresh[self.namespace] = self
 
     def get_key(self, cache_id: str = "") -> str:
@@ -146,7 +158,7 @@ class Cache:
         Raises:
             CachedResponse: generate response from cache.
         """
-        if self._no_cache:
+        if self._refreshing or self._no_cache:
             return
         cached_content, ttl = await self.backend.get(
             self.get_key(cache_id),
@@ -187,7 +199,7 @@ class Cache:
                 default = prm.default
                 if not default or not isinstance(default, params.Depends) or not isinstance(default.dependency, cls):
                     continue
-                cache: cls = default.dependency
+                cache = default.dependency
                 if cache.namespace is None:
                     cache.set_namespace(route.path)
                 if cache.auto_refresh:
@@ -203,12 +215,12 @@ class Cache:
         if time_until_refresh > 0:
             await asyncio.sleep(time_until_refresh)
         if await self.backend.lock(key, timeout=self._lock_timeout):
-            if asyncio.iscoroutinefunction(self._autorefresh_callback):
+            self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
+            self._refreshing = True
+            try:  # noqa: WPS501
                 await self._autorefresh_callback()
-            else:
-                self._autorefresh_callback()
-            await self.backend.unlock(key)
-        self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
+            finally:
+                self._refreshing = False
 
 
 def cached_response_handler(request: Request, exc: CachedResponse) -> Response:
