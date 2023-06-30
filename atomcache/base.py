@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+from contextlib import suppress
 from functools import partial
 from hashlib import sha256
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, TypeVar, Union
@@ -70,16 +71,11 @@ class Cache:
         self._allow_cache_control = cache_control
         self._autorefresh_callback: Union[Callable, Awaitable, None] = None
         self._autorefresh_task: Optional[asyncio.Future] = None
-        self._refreshing: bool = False
         self._no_cache: bool = False
 
     async def __call__(self, request: Request):
         if self._allow_cache_control:
             self._no_cache = "no-cache" in CommaSeparatedStrings(request.headers.get("Cache-Control", ""))
-        if self._refreshing:
-            cached_content, ttl = await self.backend.get(self.get_key(), with_lock=False)
-            if cached_content is not None:
-                raise CachedResponse(content=cached_content, ttl=ttl)
         return self
 
     def set_namespace(self, namespace: str):  # noqa: WPS615 FIXME: unpythonic setter
@@ -158,7 +154,7 @@ class Cache:
         Raises:
             CachedResponse: generate response from cache.
         """
-        if self._refreshing or self._no_cache:
+        if self._no_cache:
             return
         cached_content, ttl = await self.backend.get(
             self.get_key(cache_id),
@@ -206,21 +202,10 @@ class Cache:
                     cache.set_autorefresh_callback(route.endpoint)
 
     async def _autorefresh(self):
-        key = self.get_key()
-
-        ttl = await self.backend.ttl(key)
-
-        time_until_refresh = ttl - self._lock_timeout  # In case key is not setted ttl is -2
-
-        if time_until_refresh > 0:
-            await asyncio.sleep(time_until_refresh)
-        if await self.backend.lock(key, timeout=self._lock_timeout):
-            self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
-            self._refreshing = True
-            try:  # noqa: WPS501
+        while True:  # noqa: WPS457
+            with suppress(CachedResponse):
                 await self._autorefresh_callback()
-            finally:
-                self._refreshing = False
+            await asyncio.sleep(self._expire - self._lock_timeout)
 
 
 def cached_response_handler(request: Request, exc: CachedResponse) -> Response:
