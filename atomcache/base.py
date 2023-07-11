@@ -1,7 +1,6 @@
 import asyncio
 import inspect
 import json
-from contextlib import suppress
 from functools import partial
 from hashlib import sha256
 from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, TypeVar, Union
@@ -16,7 +15,7 @@ from redis.asyncio import Redis
 from .backend import DEFAULT_LOCK_TIMEOUT, EX, BaseCacheBackend
 from .redis import RedisCacheBackend
 
-MIN_AUTOREFRESH_RATE = 60
+MIN_AUTOREFRESH_RATE = 20
 _ResponseT = TypeVar("_ResponseT")
 
 
@@ -70,7 +69,6 @@ class Cache:
         self._lock_timeout = lock_timeout
         self._allow_cache_control = cache_control
         self._autorefresh_callback: Union[Callable, Awaitable, None] = None
-        self._autorefresh_task: Optional[asyncio.Future] = None
         self._no_cache: bool = False
 
     async def __call__(self, request: Request):
@@ -165,9 +163,15 @@ class Cache:
         if cached_content is not None:
             raise CachedResponse(content=cached_content, ttl=ttl)
 
-    def schedule_autorefresh(self):
-        if self.auto_refresh:
-            self._autorefresh_task = asyncio.ensure_future(self._autorefresh())
+    def schedule_autorefresh(self, __task: Optional[asyncio.Task[None]] = None) -> None:  # noqa: WPS112
+        if __task is None:
+            autorefresh_task = asyncio.create_task(self._autorefresh())
+            autorefresh_task.add_done_callback(self.schedule_autorefresh)
+            return
+        if __task.cancelled():
+            return
+        loop = asyncio.get_running_loop()
+        loop.call_later(MIN_AUTOREFRESH_RATE, self.schedule_autorefresh, None)
 
     @classmethod
     async def init(cls, app: FastAPI, cache_client: Redis, autorefresh: bool = True):
@@ -178,9 +182,10 @@ class Cache:
             raise TypeError(f"Unsupported {type(cache_client)} cache client type.")
         app.add_exception_handler(CachedResponse, cached_response_handler)
         cls._config_caches(app)
-        if autorefresh:
-            for cache in cls.autorefresh.values():
-                cache.schedule_autorefresh()
+        if not autorefresh:
+            return
+        for cache in cls.autorefresh.values():
+            cache.schedule_autorefresh()
 
     @classmethod
     def _config_caches(cls, app: FastAPI) -> None:  # noqa: WPS231
@@ -201,11 +206,14 @@ class Cache:
                 if cache.auto_refresh:
                     cache.set_autorefresh_callback(route.endpoint)
 
-    async def _autorefresh(self):
+    async def _autorefresh(self) -> None:
         while True:  # noqa: WPS457
-            with suppress(CachedResponse):
+            try:
                 await self._autorefresh_callback()
-            await asyncio.sleep(self._expire - self._lock_timeout)
+            except CachedResponse as cached_response:
+                await asyncio.sleep(cached_response.ttl or 1)
+            else:
+                await asyncio.sleep(self._lock_timeout)
 
 
 def cached_response_handler(request: Request, exc: CachedResponse) -> Response:
