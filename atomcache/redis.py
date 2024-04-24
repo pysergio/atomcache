@@ -34,7 +34,7 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
     def lock_key(self, key: str) -> str:
         return f"{key}{self.lock_name}"
 
-    async def get(
+    async def get(  # noqa: WPS212
         self,
         key: KeyT,
         default: VT = None,
@@ -47,7 +47,9 @@ class RedisCacheBackend(BaseCacheBackend):  # noqa: WPS214
             pipe.ttl(key)
             if not with_lock:
                 cached_value, ttl = await pipe.execute()
-                return cached_value.decode() or default, ttl
+                if cached_value is None:
+                    return default, ttl
+                return cached_value.decode(), ttl
             lock_name = self.lock_key(lockspace) if lockspace else self.lock_key(key)
             pipe.get(lock_name)
             cached_value, ttl, lock = await pipe.execute()
